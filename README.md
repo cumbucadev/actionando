@@ -12,7 +12,7 @@
   </picture>
 </div>
 
-# <nome-do-repositório>
+# Actionando 💕
 
 [English Version](/README_EN.md)
 
@@ -47,13 +47,13 @@ Certifique-se de ler esses arquivos com atenção antes de contribuir. Se tiver 
 
 ## ❤️ Quem já Contribuiu
 
-<a href="https://github.com/cumbucadev/generic-template/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=cumbucadev/generic-template" />
+<a href="https://github.com/cumbucadev/actionando/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=cumbucadev/actionando" />
 </a></br></br>
 
 _Made with [contrib.rocks](https://contrib.rocks)._
 
 [github-discussions-doc]: https://docs.github.com/pt/discussions
-[github-discussions]: https://github.com/cumbucadev/<nome-do-repositório>/discussions
+[github-discussions]: https://github.com/cumbucadev/actionando/discussions
 [github-issues-doc]: https://docs.github.com/pt/issues/tracking-your-work-with-issues/creating-an-issue
-[github-issues]: https://github.com/cumbucadev/<nome-do-repositório>/issues
+[github-issues]: https://github.com/cumbucadev/actionando/issues
