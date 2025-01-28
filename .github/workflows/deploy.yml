@@ -1,9 +1,9 @@
-name: Hello World
+name: Deploy
 
 on: [push]
 
 jobs:
-  hello-world-job:
+  deploy-job:
     runs-on: ubuntu-latest
 
     steps:
