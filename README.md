@@ -16,7 +16,7 @@
 
 [English Version](/README_EN.md)
 
-## 💬 Novos Funcionalidades e Reportar Bugs
+## 💬 Novas Funcionalidades e Reportar Bugs
 
 Caso queira sugerir novas funcionalidades ou reportar bugs, basta criar
 uma nova [issue][github-issues] e iremos lhe responder por lá!
