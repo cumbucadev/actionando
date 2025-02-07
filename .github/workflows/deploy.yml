@@ -1,19 +1,31 @@
 name: Deploy
 
-on: [push]
+on: 
+  push:
+    branches:
+      - main
 
 jobs:
-  deploy-job:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Post text to a Slack channel
-      uses: slackapi/slack-github-action@v2.0.0
-      with:
-        method: chat.postMessage
-        token: ${{ secrets.SLACK_BOT_TOKEN }}
-        payload: |
-          {
-            "channel": "${{ secrets.SLACK_CHANNEL_ID }}",
-            "text": "Hey!"
-          }
+      - name: Checkout code
+        uses: actions/checkout@v4
+  
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '22'
+  
+      - name: Install dependencies
+        run: npm install
+  
+      - name: Run build
+        run: npm run build
+  
+      - name: Fake Deploy
+        run: echo "Deploying application..."
+  
+      - name: Post-deploy message
+        run: echo "Application deployed successfully!"
