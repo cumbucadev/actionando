@@ -4,7 +4,8 @@
   "description": "A fake deploy demo for GitHub Actions",
   "main": "index.js",
   "scripts": {
-    "build": "echo 'Building the project...' && mkdir -p dist && echo 'Build complete!' > dist/index.html"
+    "build": "echo 'Building the project...'",
+    "deploy": "echo 'Deploying the project...'"
   },
   "author": "Cumbuca Dev",
   "license": "MIT",
