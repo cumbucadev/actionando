@@ -1,0 +1,147 @@
+name: "Adicionar submissão de evento"
+description: "Proponha a inclusão de um evento e seu período de submissão (CFP)."
+title: "CFP: <Nome do Evento> — <Edição/Ano>"
+labels: ["cfp:adicionar", "estado:em-triagem"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Preencha os campos abaixo. Datas no formato **ISO 8601** (ex.: `2025-11-08T09:00:00-03:00`).
+        Se o evento tiver múltiplos blocos de datas, abra **uma issue por bloco** (ou informe em Observações).
+
+  # — Evento —
+  - type: input
+    id: nome
+    attributes:
+      label: Nome do evento
+      placeholder: "Python Cerrado"
+    validations:
+      required: true
+
+  - type: input
+    id: url_site
+    attributes:
+      label: URL do site do evento
+      placeholder: "https://exemplo.org"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: formato
+    attributes:
+      label: Formato
+      options:
+        - presencial
+        - online
+        - híbrido
+    validations:
+      required: true
+
+  - type: input
+    id: cidade
+    attributes:
+      label: Cidade (opcional)
+      placeholder: "Brasília"
+  - type: input
+    id: estado
+    attributes:
+      label: Estado/Província (opcional)
+      placeholder: "DF"
+  - type: input
+    id: pais
+    attributes:
+      label: País (ISO-2, opcional)
+      description: "Código de 2 letras (ex.: BR, AR, PT)."
+      placeholder: "BR"
+
+  - type: textarea
+    id: idiomas
+    attributes:
+      label: Idiomas (opcional)
+      description: "Separe por vírgula (ex.: pt, en)."
+      placeholder: "pt, en"
+
+  - type: textarea
+    id: trilhas
+    attributes:
+      label: Trilhas/temas (opcional)
+      description: "Separe por vírgula (ex.: Python, DevOps)."
+      placeholder: "Python, Comunidade"
+
+  - type: input
+    id: organizacao
+    attributes:
+      label: Organização (opcional)
+      placeholder: "Comunidade Python"
+  - type: input
+    id: edicao
+    attributes:
+      label: Edição (opcional)
+      placeholder: "2025"
+
+  - type: input
+    id: data_evento_inicio
+    attributes:
+      label: Início do evento (ISO 8601)
+      placeholder: "2025-11-08T09:00:00-03:00"
+    validations:
+      required: true
+  - type: input
+    id: data_evento_fim
+    attributes:
+      label: Fim do evento (ISO 8601)
+      placeholder: "2025-11-09T18:00:00-03:00"
+    validations:
+      required: true
+
+  # — Submissão (1:1 com o evento) —
+  - type: input
+    id: sub_inicio
+    attributes:
+      label: Início da submissão (ISO 8601)
+      placeholder: "2025-08-20T00:00:00-03:00"
+    validations:
+      required: true
+  - type: input
+    id: sub_fim
+    attributes:
+      label: Fim da submissão (ISO 8601)
+      placeholder: "2025-09-30T23:59:59-03:00"
+    validations:
+      required: true
+  - type: input
+    id: url_submissao
+    attributes:
+      label: URL do formulário de submissão
+      placeholder: "https://exemplo.org/cfp"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: formato_submissao
+    attributes:
+      label: Formatos aceitos para submissão
+      options:
+        - label: palestra
+        - label: workshop
+        - label: lightning
+        - label: painel
+        - label: outros
+
+  - type: textarea
+    id: observacoes
+    attributes:
+      label: Observações (opcional)
+      placeholder: "Preferência por conteúdos práticos; acessibilidade; etc."
+
+  # — Confirmações rápidas —
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: "Usei timezone America/Sao_Paulo (-03:00) ou informei o offset correto."
+          required: true
+        - label: "Concordo que informações inconsistentes podem levar a ajustes pelos mantenedores."
+          required: true
