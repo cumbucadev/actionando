@@ -1,6 +1,6 @@
 name: "Adicionar evento"
 description: "Utilize essa opção para adicionar um novo evento!"
-title: "(Atenção: O Título da Issue é gerado automaticamente. Sendo assim, não precisa definir um título manualmente aqui.)"
+title: "Adiciona Evento: <NOME_DO_EVENTO>"
 labels: ["cfp:adicionar", "estado:em-triagem"]
 assignees: []
 body:
@@ -9,7 +9,11 @@ body:
   # =========================================================
   - type: markdown
     attributes:
-      value: "## 1) Informações básicas do evento"
+      value: |
+        _Substituir `<NOME_DO_EVENTO>` pelo nome do evento a ser adicionado._
+        _Exemplo: `Adiciona evento: Python Brasil 2025`_
+
+        ## 1) Informações básicas do evento
 
   - type: input
     id: nome_evento
