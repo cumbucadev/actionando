@@ -1,7 +1,7 @@
 name: "Adicionar evento"
 description: "Utilize essa opção para adicionar um novo evento!"
 title: "Adiciona Evento: <NOME_DO_EVENTO>"
-labels: ["cfp:adicionar", "estado:em-triagem"]
+labels: ["evento:adicionar"]
 assignees: []
 body:
   # =========================================================
