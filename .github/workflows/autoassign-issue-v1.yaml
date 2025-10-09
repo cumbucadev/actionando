@@ -30,8 +30,7 @@ jobs:
           comment="${{ github.event.comment.body }}"
           comment_lower=$(echo "$comment" | tr '[:upper:]' '[:lower:]')
 
-          # Lista de palavras-chave (case-insensitive)
-          triggers=("bora" "bora!" "dibs" "dibs!" "on it" "on it!" "go" "go!")
+          triggers=("bora" "bora!" "dibs" "dibs!")
 
           should_assign=false
 
@@ -47,7 +46,7 @@ jobs:
       - name: Assign issue to commenter
         if: steps.check_comment.outputs.should_assign == 'true'
         run: |
-          echo "::notice::Assigning issue #$ISSUE_NUMBER to $ASSIGNEE / Atribuindo issue #$ISSUE_NUMBER para $ASSIGNEE"
+          echo "::notice::Assigning issue #$ISSUE_NUMBER to $ASSIGNEE
 
           curl -L \
             -X POST \
