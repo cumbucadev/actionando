@@ -63,10 +63,12 @@ jobs:
         with:
           issue-number: ${{ env.ISSUE_NUMBER }}
           body: |
-            🇬🇧 **English**
-            ✅ Issue #${{ github.event.issue.number }} assigned to ${{ github.event.comment.user.login }}
-            Check the [contributing guide](${{ env.CONTRIBUTING_URL }}) for instructions on submitting your Pull Request.
-
             🇧🇷 **Português**
+
             ✅ Issue #${{ github.event.issue.number }} atribuída a ${{ github.event.comment.user.login }}
             Verifique o [guia de contribuição](${{ env.CONTRIBUTING_URL }}) para instruções sobre como submeter sua Pull Request.
+
+            🇬🇧 **English**
+
+            ✅ Issue #${{ github.event.issue.number }} assigned to ${{ github.event.comment.user.login }}
+            Check the [contributing guide](${{ env.CONTRIBUTING_URL }}) for instructions on submitting your Pull Request.
