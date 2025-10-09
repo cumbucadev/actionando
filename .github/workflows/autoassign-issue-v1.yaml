@@ -46,7 +46,7 @@ jobs:
       - name: Assign issue to commenter
         if: steps.check_comment.outputs.should_assign == 'true'
         run: |
-          echo "::notice::Assigning issue #$ISSUE_NUMBER to $ASSIGNEE
+          echo "::notice::Assigning issue #$ISSUE_NUMBER to $ASSIGNEE"
 
           curl -L \
             -X POST \
