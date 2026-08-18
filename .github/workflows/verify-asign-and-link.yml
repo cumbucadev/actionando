@@ -38,14 +38,21 @@ jobs:
             
             exit 1
       - name: Verify if issue is assigned to a user
-        if: ${{ github.event.pull_request.assignee == null }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
             ISSUE_NUMBER=$(gh pr view "${{ github.event.pull_request.number }}" --json body --jq '.body' | grep -oP '(?:fixes|closes|resolves)\s+#\K\d+' | head -1)
-            gh pr edit "${{ github.event.pull_request.number }}" --add-label "Needs-assignment"
-            gh pr comment "${{ github.event.pull_request.number }}" --body |
-            "🇧🇷 **Português**
+            
+            if [ -z "$ISSUE_NUMBER" ]; then
+              exit 0
+            fi
+            
+            ASSIGNEE=$(gh issue view "$ISSUE_NUMBER" --json assignees --jq '.assignees[0].login // empty')
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            
+            if [ -n "$ASSIGNEE" ] && [ "$ASSIGNEE" != "$PR_AUTHOR" ]; then
+              gh pr edit "${{ github.event.pull_request.number }}" --add-label "Needs-assignment"
+              gh pr comment "${{ github.event.pull_request.number }}" --body "🇧🇷 **Português**
             Esta issue está atualmente atribuída a outra pessoa. Por favor, coordene com o responsável antes de abrir uma PR para esta
             issue. Se você pretende trabalhar nela, certifique-se de que a issue esteja atribuída a você primeiro.
             Veja o [Guia do Contribuidor](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue)
@@ -55,6 +62,6 @@ jobs:
             Please coordinate with the assignee before opening a PR for this issue.
             If you intend to work on it, please make sure the issue is assigned to you first.
             See the [Contributor Guide](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue)
-            for more information." 
-  
-            exit 1
+            for more information."
+              exit 1
+            fi
