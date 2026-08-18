@@ -41,10 +41,21 @@ jobs:
             gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
             exit 1
       - name: Verify if issue is assigned to a user
-        if: ${{ github.event.pull_request.assignee == null }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+            ISSUE_NUMBER=$(gh pr view "${{ github.event.pull_request.number }}" --json body --jq '.body' | grep -oP '(?:fixes|closes|resolves)\s+#\K\d+' | head -1)
+            
+            if [ -z "$ISSUE_NUMBER" ]; then
+              exit 0
+            fi
+            
+            ASSIGNEE=$(gh issue view "$ISSUE_NUMBER" --json assignees --jq '.assignees[0].login // empty')
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            
+            if [ -n "$ASSIGNEE" ] && [ "$ASSIGNEE" != "$PR_AUTHOR" ]; then
+              gh pr edit "${{ github.event.pull_request.number }}" --add-label "Needs-assignment"
+              gh pr comment "${{ github.event.pull_request.number }}" --body "🇧🇷 **Português**
             PR_NUMBER="${{ github.event.pull_request.number }}"
             ISSUE_NUMBER=$(gh pr view "$PR_NUMBER" --json body --jq '.body' | grep -oP '(?:fixes|closes|resolves)\s+#\K\d+' | head -1)
             COMMENT_BODY=$(cat <<'EOF'
@@ -58,13 +69,6 @@ jobs:
             Please coordinate with the assignee before opening a PR for this issue.
             If you intend to work on it, please make sure the issue is assigned to you first.
             See the [Contributor Guide](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue)
-            for more information.
-            EOF
-            )
-            gh pr edit "$PR_NUMBER" --add-label "Needs-assignment"
-            gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-            if [ -n "$ISSUE_NUMBER" ]; then
-              gh issue comment "$ISSUE_NUMBER" --body "$COMMENT_BODY"
-              gh issue edit "$ISSUE_NUMBER" --add-label "Needs-assignment"
+            for more information."
+              exit 1
             fi
-            exit 1
