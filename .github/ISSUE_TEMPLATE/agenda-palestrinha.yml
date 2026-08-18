@@ -4,9 +4,6 @@ title: "Adiciona Evento: <NOME_DO_EVENTO>"
 labels: ["evento:adicionar"]
 assignees: []
 body:
-  # =========================================================
-  # 1) Informações básicas do evento
-  # =========================================================
   - type: markdown
     attributes:
       value: |
