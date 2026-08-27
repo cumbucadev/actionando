@@ -12,7 +12,7 @@
   </picture>
 </div>
 
-# Actionando 💕
+# Actionando
 
 [English Version](/README_EN.md)
 
