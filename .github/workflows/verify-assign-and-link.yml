@@ -7,6 +7,10 @@ on:
       - edited
       - reopened
       - synchronize
+  issues:
+    types:
+      - assigned
+      - unassigned
 
 permissions:
   contents: read
@@ -19,102 +23,181 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Verify if PR is linked to an issue
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Resolve pull request context
+        id: find_pr
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body // ""')
+          PR_NUMBER="$EVENT_PR_NUMBER"
+          PR_AUTHOR="$EVENT_PR_AUTHOR"
 
-          ISSUE_NUMBER=$(printf '%s' "$PR_BODY" \
-            | grep -oiP '(?:fixes|closes|resolves)\s+#\K\d+' \
-            | head -1)
+          if [ "$GITHUB_EVENT_NAME" = "issues" ]; then
+            PR_NUMBER=$(gh api \
+              "repos/$REPOSITORY/issues/$ISSUE_NUMBER/pulls" \
+              --jq '.[0].number // empty')
+
+            if [ -n "$PR_NUMBER" ]; then
+              PR_AUTHOR=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
+            fi
+          fi
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No pull request is associated with issue #$ISSUE_NUMBER."
+            exit 0
+          fi
+
+          printf 'pr_number=%s\n' "$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          printf 'PR_NUMBER=%s\n' "$PR_NUMBER" >> "$GITHUB_ENV"
+          printf 'PR_AUTHOR=%s\n' "$PR_AUTHOR" >> "$GITHUB_ENV"
+
+      - name: Verify if PR is linked to an issue
+        id: verify_link
+        if: steps.find_pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER=$(gh pr view "$PR_NUMBER" \
+            --json closingIssuesReferences \
+            --jq '.closingIssuesReferences[0].number // empty')
 
           if [ -z "$ISSUE_NUMBER" ]; then
-            gh pr edit "$PR_NUMBER" --add-label "needs-issue"
-
-            if ! gh pr view "$PR_NUMBER" --json comments \
-              --jq '.comments[].body' \
-              | grep -Fq "This PR is not linked to an issue."; then
-
-              COMMENT_BODY='🇧🇷 **Português**
-          Esta PR não está vinculada a uma issue. Por favor, vincule a issue que esta PR pretende resolver antes de continuar. Siga o
-          [Guia do Contribuidor](https://scanapi.readthedocs.io/en/latest/contributor-guide/first-pull-request/#5-create-a-github-pr)
-          para aprender como vincular uma issue à sua PR. As PRs devem estar associadas a uma issue antes do início da implementação.
-          🇬🇧 **English**
-          This PR is not linked to an issue. Please link the issue this PR is intended to resolve before continuing. Please follow
-          the [Contributor Guide](https://scanapi.readthedocs.io/en/latest/contributor-guide/first-pull-request/#5-create-a-github-pr)
-          to learn how to link an issue to your PR. PRs should be associated with an issue before implementation starts.'
-
-              gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-            fi
-
+            gh pr edit "$PR_NUMBER" --add-label "Needs Issue"
+            printf 'issue_number=\n' >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
-          gh pr edit "$PR_NUMBER" --remove-label "needs-issue" 2>/dev/null || true
+          if [[ ! "$ISSUE_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "Invalid issue number extracted from PR body."
+            printf 'issue_number=\n' >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
-          echo "ISSUE_NUMBER=$ISSUE_NUMBER" >> "$GITHUB_ENV"
+          printf 'issue_number=%s\n' "$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          printf 'ISSUE_NUMBER=%s\n' "$ISSUE_NUMBER" >> "$GITHUB_ENV"
+
+      - name: Comment when PR is not linked to an issue
+        if: always() && steps.find_pr.outputs.pr_number != '' && steps.verify_link.outputs.issue_number == ''
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 #v3.0.5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          header: issue-link-required
+          message: |
+            🇧🇷 **Português**
+            Esta PR não está vinculada a uma issue. Por favor, vincule a issue que esta PR pretende resolver antes de continuar. Siga o [Guia do Contribuidor](https://scanapi.readthedocs.io/en/latest/contributor-guide/first-pull-request/#5-create-a-github-pr) para aprender como vincular uma issue à sua PR. As PRs devem estar associadas a uma issue antes do início da implementação.
+
+            🇬🇧 **English**
+            This PR is not linked to an issue. Please link the issue this PR is intended to resolve before continuing. Please follow the [Contributor Guide](https://scanapi.readthedocs.io/en/latest/contributor-guide/first-pull-request/#5-create-a-github-pr) to learn how to link an issue to a PR. PRs should be associated with an issue before implementation starts.
 
       - name: Verify if issue is assigned to PR author
+        id: verify_assignment
+        if: steps.find_pr.outputs.pr_number != '' && steps.verify_link.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          ASSIGNEE=$(gh issue view "$ISSUE_NUMBER" \
+          ASSIGNMENT_STATUS=$(gh issue view "$ISSUE_NUMBER" \
             --json assignees \
-            --jq '.assignees[0].login // empty')
+            --jq '
+              if any(.assignees[]?; .login == env.PR_AUTHOR) then
+                "assigned"
+              elif (.assignees | length) == 0 then
+                "not_assigned"
+              else
+                "assigned_to_someone_else"
+              end')
 
-          if [ -z "$ASSIGNEE" ]; then
-            gh pr edit "$PR_NUMBER" --add-label "needs-assignment"
-
-            if ! gh pr view "$PR_NUMBER" --json comments \
-              --jq '.comments[].body' \
-              | grep -Fq "This issue is not assigned to anyone yet."; then
-
-              COMMENT_BODY='🇧🇷 **Português**
-          Esta issue ainda não está atribuída a ninguém. Por favor, atribua a issue a você antes de abrir uma PR.
-          Siga o [Guia do Contribuidor](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue)
-          para aprender como reivindicar uma issue.
-          Isso ajuda a evitar que várias pessoas trabalhem na mesma issue ao mesmo tempo.
-          🇬🇧 **English**
-          This issue is not assigned to anyone yet. Please assign the issue to yourself before opening a PR.
-          Please follow the [Contributor Guide](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue)
-          to learn how to claim an issue.
-          This helps us avoid multiple people working on the same issue at the same time.'
-
-              gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-            fi
-
+          if [ "$ASSIGNMENT_STATUS" = "not_assigned" ]; then
+            gh pr edit "$PR_NUMBER" --add-label "Needs Assignment"
+            gh issue edit "$ISSUE_NUMBER" --add-label "Needs Assignment"
+            printf 'status=not_assigned\n' >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
-          if [ "$ASSIGNEE" != "$PR_AUTHOR" ]; then
-            gh pr edit "$PR_NUMBER" --add-label "needs-assignment"
-
-            if ! gh pr view "$PR_NUMBER" --json comments \
-              --jq '.comments[].body' \
-              | grep -Fq "This issue is currently assigned to someone else."; then
-
-              COMMENT_BODY='🇧🇷 **Português**
-          Esta issue está atualmente atribuída a outra pessoa. Por favor, coordene com o responsável antes de abrir uma PR para esta issue.
-          Se você pretende trabalhar nela, certifique-se de que a issue esteja atribuída a você primeiro.
-          Veja o [Guia do Contribuidor](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue)
-          para mais informações.
-          🇬🇧 **English**
-          This issue is currently assigned to someone else.
-          Please coordinate with the assignee before opening a PR for this issue.
-          If you intend to work on it, please make sure the issue is assigned to you first.
-          See the [Contributor Guide](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue)
-          for more information.'
-
-              gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
-            fi
-
+          if [ "$ASSIGNMENT_STATUS" = "assigned_to_someone_else" ]; then
+            gh pr edit "$PR_NUMBER" --add-label "Needs Assignment"
+            gh issue edit "$ISSUE_NUMBER" --add-label "Needs Assignment"
+            printf 'status=assigned_to_someone_else\n' >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
-          gh pr edit "$PR_NUMBER" --remove-label "needs-assignment" 2>/dev/null || true
+          printf 'status=assigned\n' >> "$GITHUB_OUTPUT"
 
           echo "Issue #$ISSUE_NUMBER is assigned to PR author $PR_AUTHOR."
+
+      - name: Comment when issue is not assigned to PR author
+        if: always() && steps.find_pr.outputs.pr_number != '' && steps.verify_assignment.outputs.status != 'assigned' && steps.verify_assignment.outputs.status != ''
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 #v3.0.5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          header: issue-assignment-required
+          message: |
+            🇧🇷 **Português**
+            Esta issue não está atualmente atribuída a você. Por favor, coordene com o responsável antes de abrir uma PR para esta issue. Se você pretende trabalhar nela, certifique-se de que a issue esteja atribuída a você primeiro. Veja o [Guia do Contribuidor](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue) para mais informações.
+
+            🇬🇧 **English**
+            This issue isn't currently assigned to you. Please coordinate with the assignee before opening a PR for this issue. If you intend to work on it, please make sure the issue is assigned to you first. See the [Contributor Guide](https://scanapi.readthedocs.io/en/latest/contributor-guide/?h=issue+ass#5-claim-the-issue) for more information.
+
+      - name: Remove assignment comment when checks pass
+        if: always() && steps.find_pr.outputs.pr_number != '' && steps.verify_assignment.outputs.status == 'assigned'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 #v3.0.5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          header: issue-assignment-required
+          delete: true
+
+      - name: Remove validation labels when checks pass
+        if: always() && steps.find_pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.verify_link.outputs.issue_number }}
+          ASSIGNMENT_STATUS: ${{ steps.verify_assignment.outputs.status }}
+        run: |
+          if [ -n "$ISSUE_NUMBER" ]; then
+            gh pr edit "$PR_NUMBER" --remove-label "Needs Issue" 2>/dev/null || true
+          fi
+
+          if [ "$ASSIGNMENT_STATUS" = "assigned" ] && [ -n "$ISSUE_NUMBER" ]; then
+            gh pr edit "$PR_NUMBER" --remove-label "Needs Assignment" 2>/dev/null || true
+            gh issue edit "$ISSUE_NUMBER" --remove-label "Needs Assignment" 2>/dev/null || true
+          fi
+
+      - name: Clean up validation on previously linked issues
+        if: always() && steps.find_pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_ISSUE_NUMBER: ${{ steps.verify_link.outputs.issue_number }}
+          PR_NUMBER: ${{ steps.find_pr.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh api --paginate \
+            "repos/$REPOSITORY/issues/$PR_NUMBER/timeline" \
+            -H 'Accept: application/vnd.github+json' \
+            --jq '.[] | select(.event == "cross-referenced" and .source.issue.number) | .source.issue.number' \
+            | sort -u \
+            | while read -r OLD_ISSUE_NUMBER; do
+                if [ "$OLD_ISSUE_NUMBER" = "$CURRENT_ISSUE_NUMBER" ]; then
+                  continue
+                fi
+
+                gh issue edit "$OLD_ISSUE_NUMBER" \
+                  --remove-label "Needs Assignment" 2>/dev/null || true
+
+                gh api --paginate \
+                  "repos/$REPOSITORY/issues/$OLD_ISSUE_NUMBER/comments" \
+                  --jq '.[] | select(.body | contains("This issue is not assigned to anyone yet.") or contains("This issue is currently assigned to someone else.")) | .id' \
+                  | while read -r COMMENT_ID; do
+                      gh api --method DELETE \
+                        "repos/$REPOSITORY/issues/comments/$COMMENT_ID" || true
+                    done
+              done
+
+          
