@@ -110,8 +110,7 @@ jobs:
               --jq '.comments[].body' \
               | grep -Fq "$COMMENT_MARKER"; then
 
-              gh pr comment "$PR_NUMBER" --body "$COMMENT_MARKER"
-            fi
+            gh pr comment "$PR_NUMBER" --body "$COMMENT_MARKER
           🇧🇷 **Português**
           Esta PR não está vinculada a uma issue. Por favor, vincule a issue que esta PR pretende resolver antes de continuar. Siga o
           [Guia do Contribuidor](https://readthedocs.io) para aprender como vincular uma issue à sua PR. As PRs devem estar associadas a uma issue antes do início da implementação.
