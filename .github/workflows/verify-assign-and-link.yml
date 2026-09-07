@@ -104,20 +104,22 @@ jobs:
             gh pr edit "$PR_NUMBER" --add-label "$LABEL_NEEDS_ISSUE"
 
             COMMENT_MARKER="<!-- verify-assign-and-link:Needs Issue -->"
+            LINK_COMMENT=$(cat <<'EOF'
+          <!-- verify-assign-and-link:Needs Issue -->
+          🇧🇷 **Português**
+          Esta PR não está vinculada a uma issue. Por favor, vincule a issue que esta PR pretende resolver antes de continuar. Siga o [Guia do Contribuidor](https://readthedocs.io) para aprender como vincular uma issue à sua PR. As PRs devem estar associadas a uma issue antes do início da implementação.
+
+          🇬🇧 **English**
+          This PR is not linked to an issue. Please link the issue this PR is intended to resolve before continuing. Please follow the [Contributor Guide](https://readthedocs.io) to learn how to link an issue to a PR. PRs should be associated with an issue before implementation starts.
+          EOF
+          )
 
             if ! gh pr view "$PR_NUMBER" \
               --json comments \
               --jq '.comments[].body' \
               | grep -Fq "$COMMENT_MARKER"; then
 
-            gh pr comment "$PR_NUMBER" --body "$COMMENT_MARKER
-          🇧🇷 **Português**
-          Esta PR não está vinculada a uma issue. Por favor, vincule a issue que esta PR pretende resolver antes de continuar. Siga o
-          [Guia do Contribuidor](https://readthedocs.io) para aprender como vincular uma issue à sua PR. As PRs devem estar associadas a uma issue antes do início da implementação.
-
-          🇬🇧 **English**
-          This PR is not linked to an issue. Please link the issue this PR is intended to resolve before continuing. Please follow
-          the [Contributor Guide](https://readthedocs.io) to learn how to link an issue to a PR. PRs should be associated with an issue before implementation starts."
+              gh pr comment "$PR_NUMBER" --body "$LINK_COMMENT"
             fi
 
             exit 1
