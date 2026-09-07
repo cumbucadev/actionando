@@ -42,6 +42,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           REPOSITORY: ${{ github.repository }}
+          LABEL_NEEDS_ISSUE: "Needs Issue"
+          LABEL_NEEDS_ASSIGNMENT: "Needs Assignment"
         run: |
           set -euo pipefail
           
@@ -64,9 +66,14 @@ jobs:
             echo "Cleaning validation state from old issue #$old_issue_number."
 
             gh issue edit "$old_issue_number" \
-              --remove-label "Needs Assignment" 2>/dev/null || true
+              --remove-label "$LABEL_NEEDS_ASSIGNMENT" 2>/dev/null || true
             gh issue edit "$old_issue_number" \
-              --remove-label "Needs Issue" 2>/dev/null || true
+              --remove-label "$LABEL_NEEDS_ISSUE" 2>/dev/null || true
+            
+            gh issue view "$old_issue_number" \
+              --json comments \
+              --jq '.comments[].body' \
+              | grep -Fq "<!-- verify-assign-and-link:" && echo "Removing validation comments from old issue #$old_issue_number."
 
             gh api \
               "repos/$REPOSITORY/issues/$old_issue_number/comments?per_page=100" \
@@ -94,7 +101,7 @@ jobs:
           if [ -z "$ISSUE_NUMBER" ]; then
             echo "PR #$PR_NUMBER is not linked to an issue."
 
-            gh pr edit "$PR_NUMBER" --add-label "Needs Issue"
+            gh pr edit "$PR_NUMBER" --add-label "$LABEL_NEEDS_ISSUE"
 
             COMMENT_MARKER="<!-- verify-assign-and-link:Needs Issue -->"
 
@@ -103,7 +110,8 @@ jobs:
               --jq '.comments[].body' \
               | grep -Fq "$COMMENT_MARKER"; then
 
-              gh pr comment "$PR_NUMBER" --body "$COMMENT_MARKER
+              gh pr comment "$PR_NUMBER" --body "$COMMENT_MARKER"
+            fi
           🇧🇷 **Português**
           Esta PR não está vinculada a uma issue. Por favor, vincule a issue que esta PR pretende resolver antes de continuar. Siga o
           [Guia do Contribuidor](https://readthedocs.io) para aprender como vincular uma issue à sua PR. As PRs devem estar associadas a uma issue antes do início da implementação.
@@ -119,102 +127,63 @@ jobs:
           echo "PR #$PR_NUMBER is linked to issue #$ISSUE_NUMBER."
 
           gh pr edit "$PR_NUMBER" \
-            --remove-label "Needs Issue" 2>/dev/null || true
+            --remove-label "$LABEL_NEEDS_ISSUE" 2>/dev/null || true
 
-          ASSIGNEE=$(gh issue view "$ISSUE_NUMBER" \
+          ASSIGNEES=$(gh issue view "$ISSUE_NUMBER" \
             --json assignees \
-            --jq '.assignees[0].login // empty')
+            --jq '.assignees[]?.login')
 
-          if [ -z "$ASSIGNEE" ]; then
+          if [ -z "$ASSIGNEES" ]; then
             echo "Issue #$ISSUE_NUMBER has no assignee."
 
-            gh pr edit "$PR_NUMBER" --add-label "Needs Assignment"
+            gh pr edit "$PR_NUMBER" --add-label "$LABEL_NEEDS_ASSIGNMENT"
 
             COMMENT_MARKER="<!-- verify-assign-and-link:Needs Assignment:unassigned -->"
-
-            if ! gh issue view "$ISSUE_NUMBER" \
-              --json comments \
-              --jq '.comments[].body' \
-              | grep -Fq "$COMMENT_MARKER"; then
-
-              gh issue comment "$ISSUE_NUMBER" --body "$COMMENT_MARKER
+            UNASSIGNED_COMMENT="$COMMENT_MARKER
           🇧🇷 **Português**
           Esta issue ainda não está atribuída a ninguém. Por favor, atribua a issue a você antes de abrir uma PR. Siga o [Guia do Contribuidor](https://readthedocs.io) para aprender como reivindicar uma issue.
           Isso ajuda a evitar que várias pessoas trabalhem na mesma issue ao mesmo tempo.
 
           🇬🇧 **English**
-          This issue is not assigned to anyone yet. Please assign the issue to yourself before opening a PR.
-          Please follow the [Contributor Guide](https://readthedocs.io) to learn how to claim an issue.
+          This issue is not assigned to anyone yet. Please assign the issue to yourself before opening a PR. Please follow the [Contributor Guide](https://readthedocs.io) to learn how to claim an issue.
           This helps us avoid multiple people working on the same issue at the same time."
+
+            if ! gh issue view "$ISSUE_NUMBER" --json comments --jq '.comments[].body' | grep -Fq "$COMMENT_MARKER"; then
+              gh issue comment "$ISSUE_NUMBER" --body "$UNASSIGNED_COMMENT"
             fi
 
-            if ! gh pr view "$PR_NUMBER" \
-              --json comments \
-              --jq '.comments[].body' \
-              | grep -Fq "$COMMENT_MARKER"; then
-
-              gh pr comment "$PR_NUMBER" --body "$COMMENT_MARKER
-          🇧🇷 **Português**
-          Esta issue ainda não está atribuída a ninguém. Por favor, atribua a issue a você antes de abrir uma PR.
-          Siga o [Guia do Contribuidor](https://readthedocs.io)
-          para aprender como reivindicar uma issue.
-          Isso ajuda a evitar que várias pessoas trabalhem na mesma issue ao mesmo tempo.
-
-          🇬🇧 **English**
-          This issue is not assigned to anyone yet. Please assign the issue to yourself before opening a PR.
-          Please follow the [Contributor Guide](https://readthedocs.io)
-          to learn how to claim an issue.
-          This helps us avoid multiple people working on the same issue at the same time."
+            if ! gh pr view "$PR_NUMBER" --json comments --jq '.comments[].body' | grep -Fq "$COMMENT_MARKER"; then
+              gh pr comment "$PR_NUMBER" --body "$UNASSIGNED_COMMENT"
             fi
 
             exit 1
           fi
 
-          if [ "$ASSIGNEE" != "$PR_AUTHOR" ]; then
-            echo "Issue #$ISSUE_NUMBER is assigned to $ASSIGNEE, not $PR_AUTHOR."
+          if ! printf '%s\n' "$ASSIGNEES" | grep -Fxq "$PR_AUTHOR"; then
+            echo "Issue #$ISSUE_NUMBER is assigned to $ASSIGNEES, not $PR_AUTHOR."
 
-            gh pr edit "$PR_NUMBER" --add-label "Needs Assignment"
+            gh pr edit "$PR_NUMBER" --add-label "$LABEL_NEEDS_ASSIGNMENT"
+            gh issue edit "$ISSUE_NUMBER" --add-label "$LABEL_NEEDS_ASSIGNMENT"
 
             COMMENT_MARKER="<!-- verify-assign-and-link:Needs Assignment:other -->"
-
-            if ! gh issue view "$ISSUE_NUMBER" \
-              --json comments \
-              --jq '.comments[].body' \
-              | grep -Fq "$COMMENT_MARKER"; then
-
-              gh issue comment "$ISSUE_NUMBER" --body "$COMMENT_MARKER
+            OTHER_ASSIGNEE_COMMENT="$COMMENT_MARKER
           🇧🇷 **Português**
           Esta issue está atualmente atribuída a outra pessoa. Por favor, coordene com o responsável antes de abrir uma PR para esta issue.
           Se você pretende trabalhar nela, certifique-se de que a issue esteja atribuída a você primeiro.
-          Veja o [Guia do Contribuidor](https://readthedocs.io)
-          para mais informações.
+          Veja o [Guia do Contribuidor](https://readthedocs.io) para mais informações.
 
           🇬🇧 **English**
           This issue is currently assigned to someone else.
           Please coordinate with the assignee before opening a PR for this issue.
           If you intend to work on it, please make sure the issue is assigned to you first.
-          See the [Contributor Guide](https://readthedocs.io)
-          for more information."
+          See the [Contributor Guide](https://readthedocs.io) for more information."
+
+            if ! gh issue view "$ISSUE_NUMBER" --json comments --jq '.comments[].body' | grep -Fq "$COMMENT_MARKER"; then
+              gh issue comment "$ISSUE_NUMBER" --body "$OTHER_ASSIGNEE_COMMENT"
             fi
 
-            if ! gh pr view "$PR_NUMBER" \
-              --json comments \
-              --jq '.comments[].body' \
-              | grep -Fq "$COMMENT_MARKER"; then
-
-              gh pr comment "$PR_NUMBER" --body "$COMMENT_MARKER
-          🇧🇷 **Português**
-          Esta issue está atualmente atribuída a outra pessoa. Por favor, coordene com o responsável antes de abrir uma PR para esta issue.
-          Se você pretende trabalhar nela, certifique-se de que a issue esteja atribuída a você primeiro.
-          Veja o [Guia do Contribuidor](https://readthedocs.io)
-          para mais informações.
-
-          🇬🇧 **English**
-          This issue is currently assigned to someone else.
-          Please coordinate with the assignee before opening a PR for this issue.
-          If you intend to work on it, please make sure the issue is assigned to you first.
-          See the [Contributor Guide](https://readthedocs.io)
-          for more information."
+            if ! gh pr view "$PR_NUMBER" --json comments --jq '.comments[].body' | grep -Fq "$COMMENT_MARKER"; then
+              gh pr comment "$PR_NUMBER" --body "$OTHER_ASSIGNEE_COMMENT"
             fi
 
             exit 1
@@ -223,5 +192,7 @@ jobs:
           echo "Issue #$ISSUE_NUMBER is correctly assigned to $PR_AUTHOR."
 
           gh pr edit "$PR_NUMBER" \
-            --remove-label "Needs Assignment" 2>/dev/null || true
+            --remove-label "$LABEL_NEEDS_ASSIGNMENT" 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" \
+            --remove-label "$LABEL_NEEDS_ASSIGNMENT" 2>/dev/null || true
 
