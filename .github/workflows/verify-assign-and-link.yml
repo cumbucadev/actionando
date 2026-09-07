@@ -123,7 +123,8 @@ jobs:
 
           ASSIGNEE=$(gh issue view "$ISSUE_NUMBER" \
             --json assignees \
-            --jq '.assignees[0].login // empty')
+            --jq --arg author "$PR_AUTHOR" \
+              'if any(.assignees[]?; .login == $author) then $author else .assignees[0].login // empty end')
 
           if [ -z "$ASSIGNEE" ]; then
             echo "Issue #$ISSUE_NUMBER has no assignee."
