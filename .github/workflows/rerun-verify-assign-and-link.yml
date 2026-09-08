@@ -49,7 +49,7 @@ jobs:
                   --jq "first(.workflow_runs[] | select(any(.pull_requests[]?.number; . == $PR_NUMBER)) | .id) // empty")
 
                 if [ -z "$RUN_ID" ]; then
-                  echo "No Verify Assign and Link run found for PR #$PR_NUMBER."
+                  echo "No Verify-assign-and-link run found for PR #$PR_NUMBER."
                   exit 1
                 fi
 
