@@ -20,6 +20,7 @@ jobs:
                 GH_TOKEN: ${{ github.token }}
                 ISSUE_NUMBER: ${{ github.event.issue.number }}
                 REPOSITORY: ${{ github.repository }}
+                WORKFLOW_NAME: Verify Assign and Link
               run: |
                 set -euo pipefail
 
@@ -34,12 +35,21 @@ jobs:
                   exit 0
                 fi
 
+                WORKFLOW_ID=$(gh api \
+                  "repos/$REPOSITORY/actions/workflows?per_page=100" \
+                  --jq ".workflows[] | select(.name == \"$WORKFLOW_NAME\") | .id" | head -n 1)
+
+                if [ -z "$WORKFLOW_ID" ]; then
+                  echo "Workflow '$WORKFLOW_NAME' not found."
+                  exit 1
+                fi
+
                 RUN_ID=$(gh api \
-                  "repos/$REPOSITORY/actions/workflows/verify-assign-and-link.yml/runs?event=pull_request_target&per_page=100" \
+                  "repos/$REPOSITORY/actions/workflows/$WORKFLOW_ID/runs?event=pull_request_target&per_page=100" \
                   --jq "first(.workflow_runs[] | select(any(.pull_requests[]?.number; . == $PR_NUMBER)) | .id) // empty")
 
                 if [ -z "$RUN_ID" ]; then
-                  echo "No Verify-assign-and-link run found for PR #$PR_NUMBER."
+                  echo "No Verify Assign and Link run found for PR #$PR_NUMBER."
                   exit 1
                 fi
 
@@ -49,4 +59,3 @@ jobs:
               env:
                 GH_TOKEN: ${{ github.token }}
               run: gh run rerun ${{ steps.find_runs.outputs.run_id }} --repo ${{ github.repository }}
-
