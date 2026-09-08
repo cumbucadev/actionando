@@ -20,7 +20,6 @@ jobs:
                 GH_TOKEN: ${{ github.token }}
                 ISSUE_NUMBER: ${{ github.event.issue.number }}
                 REPOSITORY: ${{ github.repository }}
-                WORKFLOW_NAME: Verify Assign and Link
               run: |
                 set -euo pipefail
 
@@ -53,7 +52,7 @@ jobs:
                   --jq 'first(.workflow_runs[].id) // empty')
 
                 if [ -z "$RUN_ID" ]; then
-                  echo "No Verify Assign and Link run found for PR #$PR_NUMBER."
+                  echo "No Verify-assign-and-link run found for PR #$PR_NUMBER."
                   exit 1
                 fi
 
