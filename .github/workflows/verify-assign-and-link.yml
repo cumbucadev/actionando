@@ -245,5 +245,25 @@ jobs:
             --remove-label "${LABEL_NEEDS_ASSIGNMENT}" \
             2>/dev/null || true
 
+          gh issue comment "${ISSUE_NUMBER}" \
+            --repo "${REPOSITORY}" \
+            --remove "${UNASSIGNED_COMMENT}" \
+            2>/dev/null || true
+
+          gh issue comment "${ISSUE_NUMBER}" \
+            --repo "${REPOSITORY}" \
+            --remove "${OTHER_ASSIGNEE_COMMENT}" \
+            2>/dev/null || true
+
+          gh pr comment "${PR_NUMBER}" \
+            --repo "${REPOSITORY}" \
+            --remove "${UNASSIGNED_COMMENT}" \
+            2>/dev/null || true
+
+          gh pr comment "${PR_NUMBER}" \
+            --repo "${REPOSITORY}" \
+            --remove "${OTHER_ASSIGNEE_COMMENT}" \
+            2>/dev/null || true
+
           echo "Validation passed."
 
