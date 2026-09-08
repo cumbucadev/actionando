@@ -49,4 +49,3 @@ jobs:
               env:
                 GH_TOKEN: ${{ github.token }}
               run: gh run rerun ${{ steps.find_runs.outputs.run_id }} --repo ${{ github.repository }}
-
