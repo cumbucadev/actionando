@@ -1,7 +1,10 @@
-name: Rerun Workflow
+name: Rerun Verify Assign and Link
+
 on:
-    issues:
-        types: [assigned, unassigned]
+  issues:
+    types:
+      - assigned
+      - unassigned
 
 permissions:
   contents: read
@@ -9,54 +12,204 @@ permissions:
   actions: write
 
 jobs:
-    rerun-workflow:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-            - name: Find workflow runs for the issue
-              id: find_runs
-              env:
-                GH_TOKEN: ${{ github.token }}
-                ISSUE_NUMBER: ${{ github.event.issue.number }}
-                REPOSITORY: ${{ github.repository }}
-                WORKFLOW_NAME: Verify Assign and Link
-              run: |
-                set -euo pipefail
+  rerun-workflow:
+    name: Rerun Verify Assign and Link
+    runs-on: ubuntu-latest
 
-                PR_NUMBER=$(gh api \
-                  "repos/$REPOSITORY/issues/$ISSUE_NUMBER/timeline" \
-                  --paginate \
-                  --jq '.[] | select(.event == "cross-referenced" and .source.issue.pull_request != null) | .source.issue.number')
-                PR_NUMBER="${PR_NUMBER%%$'\n'*}"
+    steps:
+      - name: Find linked pull requests
+        id: find_prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
 
-                if [ -z "$PR_NUMBER" ]; then
-                  echo "No pull request linked to issue #$ISSUE_NUMBER."
-                  exit 0
-                fi
+          echo "Issue #${ISSUE_NUMBER} changed."
 
-                WORKFLOW_ID=$(gh api \
-                  "repos/$REPOSITORY/actions/workflows?per_page=100" \
-                  --jq ".workflows[] | select(.name == \"$WORKFLOW_NAME\") | .id" | head -n 1)
+          PR_NUMBERS="$(
+            gh api \
+              "repos/${REPOSITORY}/issues/${ISSUE_NUMBER}/timeline" \
+              --paginate \
+              --jq '
+                .[]
+                | select(
+                    .event == "cross-referenced" and
+                    .source.issue.pull_request != null
+                  )
+                | .source.issue.number
+              ' |
+              sort -u
+          )"
 
-                if [ -z "$WORKFLOW_ID" ]; then
-                  echo "Workflow '$WORKFLOW_NAME' not found."
-                  exit 1
-                fi
+          if [ -z "${PR_NUMBERS}" ]; then
+            echo "No pull request linked to issue #${ISSUE_NUMBER}."
+            exit 0
+          fi
 
-                RUN_ID=$(gh api \
-                  "repos/$REPOSITORY/actions/workflows/$WORKFLOW_ID/runs?event=pull_request_target&per_page=100" \
-                  --jq "first(.workflow_runs[] | select(any(.pull_requests[]?.number; . == $PR_NUMBER)) | .id) // empty")
+          echo "Linked PRs:"
+          printf '%s\n' "${PR_NUMBERS}"
 
-                if [ -z "$RUN_ID" ]; then
-                  echo "No Verify Assign and Link run found for PR #$PR_NUMBER."
-                  exit 1
-                fi
+          {
+            echo "pr_numbers<<EOF"
+            printf '%s\n' "${PR_NUMBERS}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
 
-                echo "Found run $RUN_ID for PR #$PR_NUMBER linked to issue #$ISSUE_NUMBER."
-                echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-            - name: Rerun workflow runs
-              env:
-                GH_TOKEN: ${{ github.token }}
-              run: gh run rerun ${{ steps.find_runs.outputs.run_id }} --repo ${{ github.repository }}
+
+      - name: Find Verify Assign and Link workflow
+        id: find_workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_NAME: "Verify Assign and Link"
+        run: |
+          set -euo pipefail
+
+          echo "Searching for workflow: ${WORKFLOW_NAME}"
+
+          WORKFLOW_ID="$(
+            gh api \
+              "repos/${REPOSITORY}/actions/workflows?per_page=100" \
+              --jq '.workflows[] | select(.name == "Verify Assign and Link") | .id' |
+              head -n 1
+          )"
+
+          if [ -z "${WORKFLOW_ID}" ]; then
+            echo "Workflow '${WORKFLOW_NAME}' not found."
+            exit 1
+          fi
+
+          echo "Workflow ID: ${WORKFLOW_ID}"
+
+          echo "workflow_id=${WORKFLOW_ID}" >> "${GITHUB_OUTPUT}"
+
+
+      - name: Rerun validation workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          WORKFLOW_ID: ${{ steps.find_workflow.outputs.workflow_id }}
+          LINKED_PR_NUMBERS: ${{ steps.find_prs.outputs.pr_numbers }}
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r PR_NUMBER; do
+
+            if [ -z "${PR_NUMBER}" ]; then
+              continue
+            fi
+
+            echo "----------------------------------------"
+            echo "Processing PR #${PR_NUMBER}"
+            echo "----------------------------------------"
+
+            PR_HEAD_SHA="$(
+              gh api \
+                "repos/${REPOSITORY}/pulls/${PR_NUMBER}" \
+                --jq '.head.sha'
+            )"
+
+            echo "PR head SHA: ${PR_HEAD_SHA}"
+
+            RUN_ID="$(
+              gh api \
+                "repos/${REPOSITORY}/actions/workflows/${WORKFLOW_ID}/runs" \
+                --method GET \
+                -f event="pull_request_target" \
+                -f head_sha="${PR_HEAD_SHA}" \
+                -f per_page=100 \
+                --jq '
+                  .workflow_runs
+                  | map(select(.event == "pull_request_target"))
+                  | sort_by(.created_at)
+                  | reverse
+                  | .[0].id // empty
+                '
+            )"
+
+            if [ -z "${RUN_ID}" ]; then
+              echo "No Verify Assign and Link run found for PR #${PR_NUMBER}."
+              continue
+            fi
+
+            echo "Found run ${RUN_ID} for PR #${PR_NUMBER}."
+
+            gh run rerun "${RUN_ID}" \
+              --repo "${REPOSITORY}"
+
+            echo "Rerun requested for PR #${PR_NUMBER}."
+
+          done <<< "${LINKED_PR_NUMBERS}"
+      - name: Remove generated comments and labels from unassigned issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          LABEL_NEEDS_ASSIGNMENT: "Needs Assignment"
+          UNASSIGNED_COMMENT: |
+            <!-- verify-assign-and-link:Needs Assignment:unassigned -->
+
+            🇧🇷 **Português**
+
+            Esta issue ainda não está atribuída a ninguém. Por favor, atribua a issue a você antes de abrir uma PR.
+
+            Siga o [Guia do Contribuidor](https://readthedocs.io) para aprender como reivindicar uma issue.
+
+            Isso ajuda a evitar que várias pessoas trabalhem na mesma issue ao mesmo tempo.
+
+            🇬🇧 **English**
+
+            This issue is not assigned to anyone yet. Please assign the issue to yourself before opening a PR.
+
+            Please follow the [Contributor Guide](https://readthedocs.io) to learn how to claim an issue.
+
+            This helps us avoid multiple people working on the same issue at the same time.
+
+          OTHER_ASSIGNEE_COMMENT: |
+            <!-- verify-assign-and-link:Needs Assignment:other -->
+
+            🇧🇷 **Português**
+
+            Esta issue está atualmente atribuída a outra pessoa. Por favor, coordene com o responsável antes de abrir uma PR para esta issue.
+
+            Se você pretende trabalhar nela, certifique-se de que a issue esteja atribuída a você primeiro.
+
+            Veja o [Guia do Contribuidor](https://readthedocs.io) para mais informações.
+
+            🇬🇧 **English**
+
+            This issue is currently assigned to someone else. Please coordinate with the assignee before opening a PR for this issue.
+
+            If you intend to work on it, please make sure the issue is assigned to you first.
+
+            See the [Contributor Guide](https://readthedocs.io) for more information.
+        run: |
+          set -euo pipefail
+          remove_generated_comments() {
+            local issue_or_pr_number="$1"
+            local comment_marker="$2"
+
+            gh api --paginate \
+              "repos/${REPOSITORY}/issues/${issue_or_pr_number}/comments" \
+              --jq ".[] | select(.body | contains(\"${comment_marker}\")) | .id" |
+              while IFS= read -r comment_id; do
+                [ -z "${comment_id}" ] && continue
+                gh api --method DELETE \
+                  "repos/${REPOSITORY}/issues/comments/${comment_id}"
+              done
+          }
+          issues=$(gh issue list \
+            --repo "${REPOSITORY}" \
+            --label "${LABEL_NEEDS_ASSIGNMENT}" \
+            --state open \
+            --json number \
+            --jq '.[].number') \
+            --search "-linked:pr" 
+          for issue in $issues; do
+            echo "Removing generated comments from issue #${issue}"
+            remove_generated_comments "${issue}" "<!-- verify-assign-and-link:Needs Assignment:unassigned -->"
+            remove_generated_comments "${issue}" "<!-- verify-assign-and-link:Needs Assignment:other -->"
+          done
 

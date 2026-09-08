@@ -245,25 +245,30 @@ jobs:
             --remove-label "${LABEL_NEEDS_ASSIGNMENT}" \
             2>/dev/null || true
 
-          gh issue comment "${ISSUE_NUMBER}" \
-            --repo "${REPOSITORY}" \
-            --remove "${UNASSIGNED_COMMENT}" \
-            2>/dev/null || true
+          remove_generated_comments() {
+            local issue_or_pr_number="$1"
+            local comment_marker="$2"
 
-          gh issue comment "${ISSUE_NUMBER}" \
-            --repo "${REPOSITORY}" \
-            --remove "${OTHER_ASSIGNEE_COMMENT}" \
-            2>/dev/null || true
+            gh api --paginate \
+              "repos/${REPOSITORY}/issues/${issue_or_pr_number}/comments" \
+              --jq ".[] | select(.body | contains(\"${comment_marker}\")) | .id" |
+              while IFS= read -r comment_id; do
+                [ -z "${comment_id}" ] && continue
+                gh api --method DELETE \
+                  "repos/${REPOSITORY}/issues/comments/${comment_id}"
+              done
+          }
 
-          gh pr comment "${PR_NUMBER}" \
-            --repo "${REPOSITORY}" \
-            --remove "${UNASSIGNED_COMMENT}" \
-            2>/dev/null || true
-
-          gh pr comment "${PR_NUMBER}" \
-            --repo "${REPOSITORY}" \
-            --remove "${OTHER_ASSIGNEE_COMMENT}" \
-            2>/dev/null || true
+          remove_generated_comments "${PR_NUMBER}" \
+            '<!-- verify-assign-and-link:Needs Issue -->'
+          remove_generated_comments "${ISSUE_NUMBER}" \
+            '<!-- verify-assign-and-link:Needs Assignment:unassigned -->'
+          remove_generated_comments "${PR_NUMBER}" \
+            '<!-- verify-assign-and-link:Needs Assignment:unassigned -->'
+          remove_generated_comments "${ISSUE_NUMBER}" \
+            '<!-- verify-assign-and-link:Needs Assignment:other -->'
+          remove_generated_comments "${PR_NUMBER}" \
+            '<!-- verify-assign-and-link:Needs Assignment:other -->'
 
           echo "Validation passed."
-
+        
