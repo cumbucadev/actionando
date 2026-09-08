@@ -3,6 +3,7 @@ description: "Utilize essa opção para adicionar um novo evento!"
 title: "Adiciona Evento: <NOME_DO_EVENTO>"
 labels: ["evento:adicionar"]
 assignees: []
+
 body:
   - type: markdown
     attributes:
