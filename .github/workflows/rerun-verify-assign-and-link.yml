@@ -20,7 +20,7 @@ jobs:
                 GH_TOKEN: ${{ github.token }}
                 ISSUE_NUMBER: ${{ github.event.issue.number }}
                 REPOSITORY: ${{ github.repository }}
-                WORKFLOW_NAME: Verify-assign-and-link
+                WORKFLOW_NAME: Verify-assign-and-Link
               run: |
                 set -euo pipefail
 
