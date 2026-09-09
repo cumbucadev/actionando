@@ -92,7 +92,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           WORKFLOW_ID: ${{ steps.find_workflow.outputs.workflow_id }}
-          PR_NUMBERS: ${{ steps.find_prs.outputs.pr_numbers }}
+          LINKED_PR_NUMBERS: ${{ steps.find_prs.outputs.pr_numbers }}
         run: |
           set -euo pipefail
 
@@ -142,5 +142,4 @@ jobs:
 
             echo "Rerun requested for PR #${PR_NUMBER}."
 
-          done <<< "${PR_NUMBERS}"
-
+          done <<< "${LINKED_PR_NUMBERS}"
